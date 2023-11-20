@@ -53,7 +53,7 @@ type Ready struct {
 	// The current volatile state of a Node.
 	// SoftState will be nil if there is no update.
 	// It is not required to consume or store SoftState.
-	*SoftState
+	*SoftState // 软状态。包括集群 Leader 和节点状态，不需要持久化到 WAL
 
 	// The current state of a Node to be saved to stable storage BEFORE
 	// Messages are sent.
@@ -63,13 +63,13 @@ type Ready struct {
 	// If async storage writes are enabled, this field does not need to be acted
 	// on immediately. It will be reflected in a MsgStorageAppend message in the
 	// Messages slice.
-	pb.HardState
+	pb.HardState // 需要持久化的数据使用 Protobuf，便于序列化
 
 	// ReadStates can be used for node to serve linearizable read requests locally
 	// when its applied index is greater than the index in ReadState.
 	// Note that the readState will be returned when raft receives msgReadIndex.
 	// The returned is only valid for the request that requested to read.
-	ReadStates []ReadState
+	ReadStates []ReadState // 用于线性一致性读
 
 	// Entries specifies entries to be saved to stable storage BEFORE
 	// Messages are sent.
@@ -77,14 +77,14 @@ type Ready struct {
 	// If async storage writes are enabled, this field does not need to be acted
 	// on immediately. It will be reflected in a MsgStorageAppend message in the
 	// Messages slice.
-	Entries []pb.Entry
+	Entries []pb.Entry // Raft log entry, 在向其他节点发送消息之前需持久化到 WAL 中
 
 	// Snapshot specifies the snapshot to be saved to stable storage.
 	//
 	// If async storage writes are enabled, this field does not need to be acted
 	// on immediately. It will be reflected in a MsgStorageAppend message in the
 	// Messages slice.
-	Snapshot pb.Snapshot
+	Snapshot pb.Snapshot // 快照需保存到持久化存储中
 
 	// CommittedEntries specifies entries to be committed to a
 	// store/state-machine. These have previously been appended to stable
@@ -93,7 +93,7 @@ type Ready struct {
 	// If async storage writes are enabled, this field does not need to be acted
 	// on immediately. It will be reflected in a MsgStorageApply message in the
 	// Messages slice.
-	CommittedEntries []pb.Entry
+	CommittedEntries []pb.Entry // 已提交的日志条目，需要应用到存储状态机中
 
 	// Messages specifies outbound messages.
 	//
@@ -107,11 +107,11 @@ type Ready struct {
 	//
 	// If it contains a MsgSnap message, the application MUST report back to raft
 	// when the snapshot has been received or has failed by calling ReportSnapshot.
-	Messages []pb.Message
+	Messages []pb.Message // 持久化 Entries 后，发送给其他节点的消息
 
 	// MustSync indicates whether the HardState and Entries must be durably
 	// written to disk or if a non-durable write is permissible.
-	MustSync bool
+	MustSync bool // HardState 和 Entries 是否要持久化到 WAL 中
 }
 
 func isHardStateEqual(a, b pb.HardState) bool {
@@ -268,7 +268,7 @@ func setupNode(c *Config, peers []Peer) *node {
 // It appends a ConfChangeAddNode entry for each given peer to the initial log.
 //
 // Peers must not be zero length; call RestartNode in that case.
-func StartNode(c *Config, peers []Peer) Node {
+func StartNode(c *Config, peers []Peer) Node { // 顶级方法，调用后开启 Raft 节点
 	n := setupNode(c, peers)
 	go n.run()
 	return n
