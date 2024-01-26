@@ -31,14 +31,14 @@ type raftLog struct {
 
 	// committed is the highest log position that is known to be in
 	// stable storage on a quorum of nodes.
-	committed uint64
+	committed uint64 // commitIndex
 	// applying is the highest log position that the application has
 	// been instructed to apply to its state machine. Some of these
 	// entries may be in the process of applying and have not yet
 	// reached applied.
 	// Use: The field is incremented when accepting a Ready struct.
 	// Invariant: applied <= applying && applying <= committed
-	applying uint64
+	applying uint64 // lastApplied
 	// applied is the highest log position that the application has
 	// successfully applied to its state machine.
 	// Use: The field is incremented when advancing after the committed

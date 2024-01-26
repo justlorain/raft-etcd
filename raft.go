@@ -377,6 +377,14 @@ type raft struct {
 	lead uint64
 	// leadTransferee is id of the leader transfer target when its value is not zero.
 	// Follow the procedure defined in raft thesis 3.10.
+	//
+	// leadTransferee字段在raft结构体中表示正在进行领导权转移的目标节点的ID。
+	// 当一个节点希望将领导权转移给另一个节点时，它会将leadTransferee设置为目标节点的ID。
+	// 在领导权转移过程中，原领导者会持续发送心跳消息给leadTransferee，直到leadTransferee的日志追赶上原领导者。
+	// 一旦leadTransferee的日志追赶上，原领导者会向leadTransferee发送MsgTimeoutNow消息，促使leadTransferee开始选举过程，从而接管领导权。
+	// 如果在领导权转移过程中，leadTransferee被移除或降级为learner，领导权转移过程将被中止。
+	// 这是通过检查leadTransferee是否仍在集群配置中来实现的。
+	// 总的来说，leadTransferee字段在领导权转移过程中起到了关键的作用，它指示了领导权转移的目标节点，并控制了领导权转移的整个过程。
 	leadTransferee uint64
 	// Only one conf change may be pending (in the log, but not yet
 	// applied) at a time. This is enforced via pendingConfIndex, which
@@ -384,14 +392,14 @@ type raft struct {
 	// configuration change (if any). Config changes are only allowed to
 	// be proposed if the leader's applied index is greater than this
 	// value.
-	pendingConfIndex uint64
+	pendingConfIndex uint64 // TODO
 	// disableConfChangeValidation is Config.DisableConfChangeValidation,
 	// see there for details.
 	disableConfChangeValidation bool
 	// an estimate of the size of the uncommitted tail of the Raft log. Used to
 	// prevent unbounded log growth. Only maintained by the leader. Reset on
 	// term changes.
-	uncommittedSize entryPayloadSize
+	uncommittedSize entryPayloadSize // TODO
 
 	readOnly *readOnly
 
@@ -458,6 +466,17 @@ func newRaft(c *Config) *raft {
 		stepDownOnRemoval:           c.StepDownOnRemoval,
 	}
 
+	// restores the configuration from the initial state and loads the hard state
+	//
+	// 在 Raft 中，ConfState 是用于持久化和传输集群配置的数据结构，它包含了集群中所有节点的 ID。
+	// 然而，ConfState 并不能提供足够的信息来进行更复杂的集群配置管理，例如跟踪每个节点的复制进度，处理配置更改等
+	//
+	// 因此，Raft 实现了一个更复杂的数据结构 ProgressTracker，
+	// 它不仅包含了 ConfState 的所有信息，还包含了每个节点的复制进度，以及其他用于管理集群配置的信息。
+	// ProgressTracker 提供了一种更高级的抽象，使得 Raft 能够更有效地管理集群配置。
+	//
+	// 在处理配置更改时，Raft 会首先更新 ProgressTracker，然后将新的配置状态转换为 ConfState (switchToConfig 函数)，并将其持久化和传输。
+	// 这样，即使在节点崩溃或网络分区的情况下，也能保证集群配置的一致性和持久性。
 	cfg, prs, err := confchange.Restore(confchange.Changer{
 		Tracker:   r.prs,
 		LastIndex: raftlog.lastIndex(),
@@ -1048,6 +1067,7 @@ func (r *raft) poll(id uint64, t pb.MessageType, v bool) (granted int, rejected 
 	return r.prs.TallyVotes()
 }
 
+// Step TODO: read src
 func (r *raft) Step(m pb.Message) error {
 	// Handle the message term, which may result in our stepping down to a follower.
 	switch {
@@ -1212,6 +1232,7 @@ func (r *raft) Step(m pb.Message) error {
 		}
 
 	default:
+		// redundancy `r`
 		err := r.step(r, m)
 		if err != nil {
 			return err
