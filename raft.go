@@ -1068,6 +1068,9 @@ func (r *raft) poll(id uint64, t pb.MessageType, v bool) (granted int, rejected 
 }
 
 // Step TODO: read src
+// TODO: 这里的处理界限不是很清楚，Step 方法是否应该是按照消息类型将消息交给具体的 step 函数进行处理，Step 本身只做预处理和分发的步骤
+// TODO: 还是有可能 Step 和具体的 step 方法都能进行处理，那么区分出两者的意义在哪，
+// TODO: 只根据消息类型就可以判断出 node 的角色的话就不需要具体的 step 方法了
 func (r *raft) Step(m pb.Message) error {
 	// Handle the message term, which may result in our stepping down to a follower.
 	switch {
