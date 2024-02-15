@@ -1071,6 +1071,14 @@ func (r *raft) poll(id uint64, t pb.MessageType, v bool) (granted int, rejected 
 // TODO: 这里的处理界限不是很清楚，Step 方法是否应该是按照消息类型将消息交给具体的 step 函数进行处理，Step 本身只做预处理和分发的步骤
 // TODO: 还是有可能 Step 和具体的 step 方法都能进行处理，那么区分出两者的意义在哪，
 // TODO: 只根据消息类型就可以判断出 node 的角色的话就不需要具体的 step 方法了
+// 在 Raft 协议的实现中，Step 方法是所有消息的入口点，它负责处理所有传入的消息。
+// 在 Step 方法中，会根据消息的类型和当前节点的状态（领导者、候选人、跟随者）来决定如何处理这些消息。
+// Step 方法中的一些判断逻辑是通用的，适用于所有状态的节点，例如处理消息的任期（Term）。
+// 无论节点处于何种状态，都需要对消息的任期进行检查，如果消息的任期大于当前节点的任期，那么当前节点需要更新自己的任期并转变为跟随者状态。
+// 这部分逻辑是通用的，所以放在 Step 方法中。
+// 而 stepFollower、stepCandidate 和 stepLeader 这些方法则是针对特定状态的节点处理消息的逻辑。
+// 例如，当节点处于跟随者状态时，它应该如何处理投票请求、附加日志请求等。这部分逻辑是特定于节点状态的，所以放在对应的 step 方法中。
+// 总的来说，Step 方法中的逻辑是通用的，适用于所有状态的节点，而 step 方法中的逻辑是特定于节点状态的。这样的设计使得代码更加清晰，易于理解和维护。
 func (r *raft) Step(m pb.Message) error {
 	// Handle the message term, which may result in our stepping down to a follower.
 	switch {
@@ -1161,7 +1169,9 @@ func (r *raft) Step(m pb.Message) error {
 		return nil
 	}
 
+	// 这里进行公用的消息判断逻辑的处理
 	switch m.Type {
+	// TODO: 因为 stepFollower 和 stepCandidate 都要进行 MsgHup 的判断所以提出来放在 Step 里公共处理
 	case pb.MsgHup:
 		if r.preVote {
 			r.hup(campaignPreElection)
