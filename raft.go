@@ -1682,6 +1682,7 @@ func stepCandidate(r *raft, m pb.Message) error {
 	case myVoteRespType:
 		gr, rj, res := r.poll(m.From, m.Type, !m.Reject)
 		r.logger.Infof("%x has received %d %s votes and %d vote rejections", r.id, gr, m.Type, rj)
+		// 这里如果结果是 VotePending 就继续执行 step (stepCandidate) 方法，直到返回成功或者失败的消息
 		switch res {
 		case quorum.VoteWon:
 			if r.state == StatePreCandidate {
